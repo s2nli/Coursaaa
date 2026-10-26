@@ -93,7 +93,7 @@ this.setSrc(this.urlFor(this.cq),d.startAt||0,!!d.autoplay);this.v.playbackRate=
 urlFor(k){return this.d.quality[k]||(this.hasMap&&this.d.quality[this.mapKey(k)])||this.d.videoUrl}
 setSrc(url,t,play){const v=this.v;this.hls?.destroy();this.hls=null;this.pend={t,play};this.busy(1);this.r.classList.remove('failed');this.ytOff();const yi=ytId(url);if(yi){try{v.pause();v.removeAttribute('src');v.load()}catch{}return this.ytOn(yi)}
 if(/\.m3u8(\?|$)/i.test(url)&&!v.canPlayType('application/vnd.apple.mpegurl')){
-if(window.Hls&&Hls.isSupported()){const h=this.hls=new Hls({maxBufferLength:30,startLevel:-1,subtitleDisplay:!!this.cc});h.loadSource(url);h.attachMedia(v);
+if(window.Hls&&Hls.isSupported()){const h=this.hls=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:90,startLevel:-1,subtitleDisplay:!!this.cc});h.loadSource(url);h.attachMedia(v);
 h.on(Hls.Events.MANIFEST_PARSED,()=>{this.lv=[...new Set(h.levels.map(l=>l.height).filter(Boolean))].sort((a,b)=>a-b);this.applyQ()});
 h.on(Hls.Events.ERROR,(_,x)=>{if(!x.fatal)return;if(x.type===Hls.ErrorTypes.NETWORK_ERROR&&!this.retried){this.retried=1;h.startLoad()}else if(x.type===Hls.ErrorTypes.MEDIA_ERROR&&this.retried<2){this.retried=2;h.recoverMediaError()}else this.err()})}
 else return this.err('This browser can\'t play HLS streams.')}
