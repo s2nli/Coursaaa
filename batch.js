@@ -285,8 +285,47 @@
     onBack: () => closeOverlay(false),
     onNavigate: (n) => { if (n) openLecture(n.idx, {}); },
     onSelectLecture: (l) => { if (l) openLecture(l.idx, {}); },
-    onEnded: (d) => { if (d && d.idx != null) setDone(d.idx, true); }
+    onEnded: (d) => { if (d && d.idx != null) setDone(d.idx, true); },
+    onDuration: (sec) => { const el = document.getElementById("lvDur"); if (el) el.textContent = fmtDur(sec); }
   };
+
+  // "57m 41s" / "2h 5m" - same format coursaa shows under the title
+  function fmtDur(t) {
+    if (!t || !isFinite(t)) return "";
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = Math.floor(t % 60);
+    return h > 0 ? h + "h " + m + "m" : m + "m " + s + "s";
+  }
+
+  // title + duration + prev/next + chapter lecture list under the player (like coursaa)
+  let listOpen = false;
+  function renderInfo(pos) {
+    const f = vids[pos], el = $("#lvInfo"); if (!f || !el) return;
+    let h = '<h2 class="lvi-t">' + esc(f.it[0]) + '</h2><div class="lvi-d" id="lvDur"></div>' +
+      '<div class="lvi-nav"><button type="button" data-nav="prev"' + (pos > 0 ? "" : " disabled") + '>◀ Prev</button>' +
+      '<button type="button" data-nav="list">☰ Lectures (' + (pos + 1) + "/" + vids.length + ')</button>' +
+      '<button type="button" data-nav="next"' + (pos < vids.length - 1 ? "" : " disabled") + '>Next ▶</button></div>' +
+      '<div class="lvi-list" id="lvList"' + (listOpen ? "" : " hidden") + ">";
+    vids.forEach((v, i) => {
+      h += '<button type="button" class="lvi-it' + (i === pos ? " on" : "") + (isDone(v.idx) ? " done" : "") + '" data-go="' + v.idx + '"><span>' + (i + 1) + "</span>" + esc(v.it[0]) + "</button>";
+    });
+    el.innerHTML = h + "</div>";
+    if (listOpen) { const on = el.querySelector(".lvi-it.on"); if (on) on.scrollIntoView({ block: "center" }); }
+  }
+  $("#lvInfo").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-nav],[data-go]"); if (!b || b.disabled) return;
+    if (b.dataset.go != null) { openLecture(+b.dataset.go, {}); return; }
+    if (b.dataset.nav === "prev" && cur > 0) openLecture(vids[cur - 1].idx, {});
+    else if (b.dataset.nav === "next" && cur < vids.length - 1) openLecture(vids[cur + 1].idx, {});
+    else if (b.dataset.nav === "list") {
+      listOpen = !listOpen; const l = $("#lvList"); if (l) l.hidden = !listOpen;
+      if (listOpen) { const on = $("#lvInfo .lvi-it.on"); if (on) on.scrollIntoView({ block: "center" }); }
+    }
+  });
+
+  // YouTube lectures use YouTube's own embedded player; everything else plays in the coursaa-style player
+  function embedFor(it) {
+    return it[2] === "y" ? "https://www.youtube.com/embed/" + encodeURIComponent(it[1]) + "?autoplay=1&rel=0&playsinline=1" : null;
+  }
 
   function openLecture(fi, o) {
     o = o || {};
@@ -314,16 +353,18 @@
     cur = pos;
     const f = vids[pos];
     trackLecture(f);
+    renderInfo(pos);
+    const emb = embedFor(f.it);
+    if (emb) { pFallback = null; showFrame(f, pos, emb); return; }
     const d = lecData(pos, o);
     if (d.kind === "p") { d.videoUrl = d.downloadUrl = streamUrl(f.it[1]); pFallback = { f, pos }; } else pFallback = null;
     hideAlt();
     if (!player) {
-      player = new LecturePlayer($("#lvRoot"), d, playerOpts);
+      player = new CoursaaPlayer($("#lvRoot"), d, playerOpts);
       // if a file-stream link can't be decoded by this browser, fall back to its own page in a frame
       player.v.addEventListener("error", () => {
         if (pFallback && vids[cur] === pFallback.f) { const fb = pFallback; pFallback = null; showFrame(fb.f, fb.pos); }
       });
-      try { LecturePlayer.mediaSession(player, "assets/icon-192.png"); } catch (e) {}
     } else player.load(d);
   }
 
@@ -333,6 +374,7 @@
     if (player) { try { player.v.pause(); player.save(); } catch (e) {} }
     hideAlt();
     ov.classList.remove("open"); document.body.style.overflow = "";
+    try { $("#lvInfo").innerHTML = ""; } catch (e) {}
     if (!fromPop && history.state && history.state.p) history.back();
   }
 
