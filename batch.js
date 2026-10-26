@@ -304,15 +304,27 @@
   let pFallback = null;
   // file-stream "watch" pages expose the raw file at /dl/<id>, so the app's own player can stream it
   const streamUrl = (u) => String(u).replace(/\/watch\/([^/?#]+)/, "/dl/$1");
-  function showFrame(f, pos) {
-    showAlt('<iframe src="' + esc(f.it[1]) + '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe>' +
-      '<div class="lv-altbar"><button class="pill-btn" type="button" data-alt="prev"' + (pos > 0 ? "" : " disabled") + '>◀ Prev</button><a class="pill-btn" href="' + esc(f.it[1]) + '" target="_blank" rel="noopener noreferrer">Open in new tab</a><button class="pill-btn" type="button" data-alt="next"' + (pos < vids.length - 1 ? "" : " disabled") + ">Next ▶</button></div>");
+  function showFrame(f, pos, embed) {
+    const src = embed || f.it[1];
+    showAlt('<iframe src="' + esc(src) + '" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen' + (embed ? "" : ' referrerpolicy="no-referrer"') + '></iframe>' +
+      '<div class="lv-altbar"><button class="pill-btn" type="button" data-alt="prev"' + (pos > 0 ? "" : " disabled") + '>◀ Prev</button><a class="pill-btn" href="' + esc(embed ? src : f.it[1]) + '" target="_blank" rel="noopener noreferrer">Open in new tab</a><button class="pill-btn" type="button" data-alt="next"' + (pos < vids.length - 1 ? "" : " disabled") + ">Next ▶</button></div>");
+  }
+
+  // built-in HLS player removed: YouTube and Wistia lectures play in their own embedded players
+  function embedFor(it) {
+    const src = String(it[1] || "");
+    if (it[2] === "y") return "https://www.youtube.com/embed/" + encodeURIComponent(src) + "?autoplay=1&rel=0&playsinline=1";
+    const m = src.match(/wistia\.(?:com|net)\/embed\/medias\/([\w]+)/);
+    if (m) return "https://fast.wistia.net/embed/iframe/" + m[1] + "?autoplay=true&playsinline=true";
+    return null;
   }
 
   function playPos(pos, o) {
     cur = pos;
     const f = vids[pos];
     trackLecture(f);
+    const emb = embedFor(f.it);
+    if (emb) { pFallback = null; showFrame(f, pos, emb); return; }
     const d = lecData(pos, o);
     if (d.kind === "p") { d.videoUrl = d.downloadUrl = streamUrl(f.it[1]); pFallback = { f, pos }; } else pFallback = null;
     hideAlt();
